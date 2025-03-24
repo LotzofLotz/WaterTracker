@@ -57,16 +57,27 @@ async function sendGoalReachedNotification() {
   });
 }
 
-// Füge diese Funktion nach sendGoalReachedNotification() ein
 async function scheduleDailyReminders() {
   // Lösche alle vorherigen Benachrichtigungen
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   // Erinnerungszeiten
-  const reminderHours = [10, 14, 18, 22];
+  const reminderHours = [10, 12, 18, 22];
 
   for (const hour of reminderHours) {
-    // Erstelle eine eindeutige ID für jede Benachrichtigung
+    // Erstelle ein Date-Objekt für die nächste Benachrichtigung
+    const now = new Date();
+    const scheduleDate = new Date();
+    scheduleDate.setHours(hour);
+    scheduleDate.setMinutes(0);
+    scheduleDate.setSeconds(0);
+    scheduleDate.setMilliseconds(0);
+
+    // Wenn die Zeit für heute bereits vorbei ist, plane für morgen
+    if (scheduleDate <= now) {
+      scheduleDate.setDate(scheduleDate.getDate() + 1);
+    }
+
     const identifier = `water-reminder-${hour}`;
 
     await Notifications.scheduleNotificationAsync({
@@ -75,21 +86,14 @@ async function scheduleDailyReminders() {
         body: "Trink jetzt sofort ein Glas Wasser aminaheum!!!",
         data: { hourOfDay: hour },
       },
-      trigger: {
-        hour: hour,
-        minute: 0,
-        repeats: true,
-      },
+      trigger: scheduleDate,
       identifier,
     });
 
-    console.log(`Benachrichtigung für ${hour}:00 Uhr geplant`);
+    console.log(
+      `Benachrichtigung für ${scheduleDate.toLocaleString()} geplant`
+    );
   }
-
-  // Überprüfe, welche Benachrichtigungen geplant sind
-  const scheduledNotifications =
-    await Notifications.getAllScheduledNotificationsAsync();
-  console.log("Geplante Benachrichtigungen:", scheduledNotifications.length);
 }
 
 // Vereinfachen wir es extrem - keine Animation, nur statische Darstellung
