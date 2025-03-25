@@ -18,24 +18,31 @@ import GoalBubbleAnimation from "../components/GoalBubbleAnimation";
 import {
   registerForPushNotificationsAsync,
   scheduleDailyReminders,
-} from "../services/notificationService";
+} from "../services/NotificationService";
 
-export default function HomeScreen() {
-  const [waterCount, setWaterCount] = useState(0);
-  const [bubbles, setBubbles] = useState([]);
+interface Bubble {
+  id: number;
+  x: number;
+  waterHeight: number;
+}
+
+export default function HomeScreen(): JSX.Element {
+  const [waterCount, setWaterCount] = useState<number>(0);
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const screenHeight = Dimensions.get("window").height;
   const screenWidth = Dimensions.get("window").width;
-  const bubbleTimerRef = useRef(null);
-  const nextBubbleId = useRef(1);
-  const [showGoalAnimation, setShowGoalAnimation] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState(false);
+  const bubbleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const nextBubbleId = useRef<number>(1);
+  const [showGoalAnimation, setShowGoalAnimation] = useState<boolean>(false);
+  const [notificationPermission, setNotificationPermission] =
+    useState<boolean>(false);
 
   // Initially position the water mostly off-screen
   // We'll start with just a small portion visible (30px)
   const initialPosition = screenHeight - 80;
 
   // How far to move up with each glass (in equal steps)
-  const stepSize = (screenHeight - 80) / 10; // Changed from 30 to 80
+  const stepSize = (screenHeight - 80) / 10; // Leave 80px at top for UI elements
 
   // Animation value for vertical position
   const animatedPosition = useRef(new Animated.Value(initialPosition)).current;
@@ -55,7 +62,7 @@ export default function HomeScreen() {
   }, []);
 
   // Create a new bubble
-  const createBubble = () => {
+  const createBubble = (): void => {
     // Only create bubbles if at least 2 glasses have been added
     if (waterCount < 2) return;
 
@@ -105,7 +112,7 @@ export default function HomeScreen() {
     };
   }, [waterCount]);
 
-  const addWater = () => {
+  const addWater = (): void => {
     const newCount = waterCount + 1;
     setWaterCount(newCount);
 
@@ -126,7 +133,7 @@ export default function HomeScreen() {
     }
   };
 
-  const removeWater = () => {
+  const removeWater = (): void => {
     if (waterCount <= 0) return; // Don't go below zero
 
     const newCount = waterCount - 1;

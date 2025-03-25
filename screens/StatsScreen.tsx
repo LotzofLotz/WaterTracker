@@ -1,10 +1,10 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-export default function SettingsScreen() {
+export default function StatsScreen(): JSX.Element {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Einstellungen</Text>
+      <Text style={styles.title}>Statistiken</Text>
       <Text style={styles.subtitle}>Bald verfügbar...</Text>
     </View>
   );
