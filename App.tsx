@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, Keyboard, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,28 @@ type RootTabParamList = {
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App(): JSX.Element {
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        setKeyboardVisible(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
+  }, []);
+
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -37,9 +59,19 @@ export default function App(): JSX.Element {
 
             return <Ionicons name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: "#2980b9",
-          tabBarInactiveTintColor: "gray",
+          tabBarActiveTintColor: "#ffffff",
+          tabBarInactiveTintColor: "#d0d0d0",
           headerShown: false,
+          tabBarStyle: {
+            display: isKeyboardVisible ? "none" : "flex",
+            backgroundColor: "#2980b9",
+            borderTopWidth: 0,
+            elevation: 5,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -3 },
+            shadowOpacity: 0.1,
+            shadowRadius: 3,
+          },
         })}
       >
         <Tab.Screen name="Statistiken" component={StatsScreen} />
