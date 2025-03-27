@@ -18,6 +18,7 @@ import GoalBubbleAnimation from "../components/GoalBubbleAnimation";
 import {
   registerForPushNotificationsAsync,
   scheduleDailyReminders,
+  updateNotificationSchedule,
 } from "../services/NotificationService";
 import {
   loadUserSettings,
@@ -69,6 +70,11 @@ export default function HomeScreen(): JSX.Element {
       const amount = await loadTodayWaterAmount();
       setWaterAmount(amount);
 
+      // Prüfe, ob das Ziel bereits erreicht ist
+      if (amount >= settings.dailyGoal) {
+        setShowGoalAnimation(true);
+      }
+
       // Berechne die Position basierend auf dem geladenen Wasserstand
       const progress = Math.min(amount / settings.dailyGoal, 1);
       const newPosition = Math.max(
@@ -79,28 +85,27 @@ export default function HomeScreen(): JSX.Element {
       // Animiere zur korrekten Position
       Animated.timing(animatedPosition, {
         toValue: newPosition,
-        duration: 1000, // Etwas länger für die initiale Animation
+        duration: 1000,
         useNativeDriver: true,
         easing: Easing.inOut(Easing.ease),
       }).start();
     };
 
     initializeWaterAmount();
-  }, [settings.dailyGoal]); // Abhängigkeit von settings.dailyGoal hinzugefügt
+  }, [settings.dailyGoal]);
 
   // Request permissions for notifications when the app starts
-  // useEffect(() => {
-  //   async function setupNotifications() {
-  //     const permission = await registerForPushNotificationsAsync();
-  //     if (permission) {
-  //       setNotificationPermission(true);
-  //       // Schedule daily reminders
-  //       await scheduleDailyReminders();
-  //     }
-  //   }
+  useEffect(() => {
+    async function setupNotifications() {
+      const permission = await registerForPushNotificationsAsync();
+      if (permission) {
+        setNotificationPermission(true);
+        await scheduleDailyReminders();
+      }
+    }
 
-  //   setupNotifications();
-  // }, []);
+    setupNotifications();
+  }, []);
 
   // useEffect(() => {
   //   checkWaterEntries();
@@ -122,9 +127,10 @@ export default function HomeScreen(): JSX.Element {
     loadSettings();
 
     // Echtzeit-Updates abonnieren
-    const unsubscribe = subscribeToUserSettings((newSettings) => {
+    const unsubscribe = subscribeToUserSettings(async (newSettings) => {
       setSettings(newSettings);
       console.log("Settings updated via listener:", newSettings);
+      await updateNotificationSchedule(newSettings.notifications);
     });
 
     // Aufräumen beim Unmount

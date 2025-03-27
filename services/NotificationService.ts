@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { SchedulableTriggerInputTypes } from "expo-notifications";
 
 // Configure how notifications are displayed
 Notifications.setNotificationHandler({
@@ -12,12 +13,14 @@ Notifications.setNotificationHandler({
 
 // Function to request permissions
 export async function registerForPushNotificationsAsync(): Promise<boolean> {
+  let token;
+
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#2980b9",
+      lightColor: "#FF231F7C",
     });
   }
 
@@ -32,44 +35,83 @@ export async function registerForPushNotificationsAsync(): Promise<boolean> {
   return finalStatus === "granted";
 }
 
-export async function scheduleDailyReminders(): Promise<void> {
-  // Delete all previous notifications
-  await Notifications.cancelAllScheduledNotificationsAsync();
+// Hilfsfunktion um eine einzelne Notification zu schedulen
+async function scheduleNotification(timeStr: string): Promise<string | null> {
+  try {
+    const [hours, minutes] = timeStr.split(":").map(Number);
 
-  // Reminder times
-  const reminderHours: number[] = [10, 12, 18, 22];
-
-  for (const hour of reminderHours) {
-    // Create a Date object for the next notification
-    const now = new Date();
-    const scheduleDate = new Date();
-    scheduleDate.setHours(hour);
-    scheduleDate.setMinutes(0);
-    scheduleDate.setSeconds(0);
-    scheduleDate.setMilliseconds(0);
-
-    // If the time for today has already passed, schedule for tomorrow
-    if (scheduleDate <= now) {
-      scheduleDate.setDate(scheduleDate.getDate() + 1);
-    }
-
-    const identifier = `water-reminder-${hour}`;
-
-    await Notifications.scheduleNotificationAsync({
+    const identifier = await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Go get some water juice!! 💧",
-        body: "Trink jetzt sofort ein Glas Wasser aminaheum!!!",
-        data: { hourOfDay: hour },
+        title: "Go get some water juice! 💧",
+        body: "Trink jetzt sofort ein Glas Wasser aminaheum!",
+        sound: true,
       },
       trigger: {
-        channelId: "default",
-        seconds: 86400,
+        hour: hours,
+        minute: minutes,
+        type: SchedulableTriggerInputTypes.DAILY,
       },
-      identifier,
     });
 
-    console.log(
-      `Benachrichtigung für ${scheduleDate.toLocaleString()} geplant`
-    );
+    console.log(`Notification scheduled for ${timeStr}, ID: ${identifier}`);
+    return identifier;
+  } catch (error) {
+    console.error(`Error scheduling notification for ${timeStr}:`, error);
+    return null;
   }
+}
+
+// Hauptfunktion zum Verwalten der Notifications basierend auf Settings
+export async function updateNotificationSchedule(
+  enabledTimes: string[]
+): Promise<boolean> {
+  try {
+    // Hole alle aktuell geplanten Notifications
+    const currentNotifications =
+      await Notifications.getAllScheduledNotificationsAsync();
+
+    // Erstelle Map von Zeiten zu Notification IDs
+    const timeToIdMap = new Map(
+      currentNotifications.map((notification) => {
+        const trigger = notification.trigger as any;
+        const timeStr = `${trigger.hour
+          .toString()
+          .padStart(2, "0")}:${trigger.minute.toString().padStart(2, "0")}`;
+        return [timeStr, notification.identifier];
+      })
+    );
+
+    // Cancelle Notifications die nicht mehr in enabledTimes sind
+    for (const [time, id] of timeToIdMap.entries()) {
+      if (!enabledTimes.includes(time)) {
+        await Notifications.cancelScheduledNotificationAsync(id);
+        console.log(`Cancelled notification for ${time}`);
+      }
+    }
+
+    // Schedule neue Notifications für neue Zeiten
+    for (const time of enabledTimes) {
+      if (!timeToIdMap.has(time)) {
+        await scheduleNotification(time);
+      }
+    }
+
+    // Log final schedule
+    const finalNotifications =
+      await Notifications.getAllScheduledNotificationsAsync();
+    console.log(
+      `Updated notification schedule. ${finalNotifications.length} notifications active`
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Error updating notification schedule:", error);
+    return false;
+  }
+}
+
+// Die ursprüngliche scheduleDailyReminders Funktion können wir jetzt durch einen Aufruf von updateNotificationSchedule ersetzen
+export async function scheduleDailyReminders(): Promise<boolean> {
+  const defaultTimes = ["10:00", "14:00", "18:00", "22:00"];
+  return updateNotificationSchedule(defaultTimes);
 }

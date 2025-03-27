@@ -2,6 +2,7 @@
 import firebaseApp from "../firebaseConfig";
 import firestore from "@react-native-firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { updateNotificationSchedule } from "./NotificationService";
 
 // Benutzer-Collection
 const usersCollection = firestore().collection("users");
@@ -40,6 +41,10 @@ export const saveUserSettings = async (settings: Settings) => {
       },
       { merge: true }
     );
+
+    // Aktualisiere die Notifications basierend auf den neuen Settings
+    await updateNotificationSchedule(settings.notifications);
+
     console.log("Einstellungen erfolgreich gespeichert");
     return true;
   } catch (error) {
