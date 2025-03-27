@@ -9,6 +9,11 @@ import {
   SafeAreaView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import firestore from "@react-native-firebase/firestore";
+import {
+  saveUserSettings,
+  loadUserSettings,
+} from "../services/firebaseService";
 
 interface Settings {
   dailyGoal: number;
@@ -29,9 +34,9 @@ export default function SettingsScreen(): JSX.Element {
 
   const loadSettings = async (): Promise<void> => {
     try {
-      const savedSettings = await AsyncStorage.getItem("settings");
+      const savedSettings = await loadUserSettings();
       if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
+        setSettings(savedSettings);
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -40,7 +45,8 @@ export default function SettingsScreen(): JSX.Element {
 
   const saveSettings = async (): Promise<void> => {
     try {
-      await AsyncStorage.setItem("settings", JSON.stringify(settings));
+      await saveUserSettings(settings);
+      // Erfolgsmeldung anzeigen
     } catch (error) {
       console.error("Error saving settings:", error);
     }

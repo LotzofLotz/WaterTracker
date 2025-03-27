@@ -11,6 +11,8 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.24.0",
     "@react-native-firebase/app": "^21.12.2",
+    "@react-native-firebase/auth": "^21.12.2",
+    "@react-native-firebase/firestore": "^21.12.2",
     "@react-navigation/bottom-tabs": "^7.3.3",
     "@react-navigation/native": "^7.0.19",
     "expo": "~52.0.40",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@react-native-community/cli": "^18.0.0",
     "@types/react": "~18.3.12",
     "typescript": "^5.3.3"
   },

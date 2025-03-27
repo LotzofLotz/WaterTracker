@@ -19,6 +19,15 @@ import {
   registerForPushNotificationsAsync,
   scheduleDailyReminders,
 } from "../services/NotificationService";
+import {
+  loadUserSettings,
+  Settings,
+  subscribeToUserSettings,
+  saveWaterAmount,
+  loadTodayWaterAmount,
+  printWaterLog,
+  resetWaterLog,
+} from "../services/firebaseService";
 
 interface Bubble {
   id: number;
@@ -27,7 +36,7 @@ interface Bubble {
 }
 
 export default function HomeScreen(): JSX.Element {
-  const [waterCount, setWaterCount] = useState<number>(0);
+  const [waterAmount, setWaterAmount] = useState<number>(0);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const screenHeight = Dimensions.get("window").height;
   const screenWidth = Dimensions.get("window").width;
@@ -37,47 +46,124 @@ export default function HomeScreen(): JSX.Element {
   const [notificationPermission, setNotificationPermission] =
     useState<boolean>(false);
 
+  const [settings, setSettings] = useState<Settings>({
+    dailyGoal: 3000, // Standardwerte
+    glassSize: 300,
+    notifications: ["10:00", "14:00", "18:00", "22:00"],
+  });
+
   // Initially position the water mostly off-screen
   // We'll start with just a small portion visible (30px)
   const initialPosition = screenHeight - 80;
 
   // How far to move up with each glass (in equal steps)
-  const stepSize = (screenHeight - 80) / 10; // Leave 80px at top for UI elements
+  const glassesNeeded = settings.dailyGoal / settings.glassSize;
+  const stepSize = (screenHeight - 80) / glassesNeeded;
 
   // Animation value for vertical position
   const animatedPosition = useRef(new Animated.Value(initialPosition)).current;
 
-  // Request permissions for notifications when the app starts
+  // Lade den initialen Wasserstand und animiere die Wasserhöhe
   useEffect(() => {
-    async function setupNotifications() {
-      const permission = await registerForPushNotificationsAsync();
-      if (permission) {
-        setNotificationPermission(true);
-        // Schedule daily reminders
-        await scheduleDailyReminders();
-      }
-    }
+    const initializeWaterAmount = async () => {
+      const amount = await loadTodayWaterAmount();
+      setWaterAmount(amount);
 
-    setupNotifications();
+      // Berechne die Position basierend auf dem geladenen Wasserstand
+      const progress = Math.min(amount / settings.dailyGoal, 1);
+      const newPosition = Math.max(
+        initialPosition - progress * (screenHeight - 80),
+        0
+      );
+
+      // Animiere zur korrekten Position
+      Animated.timing(animatedPosition, {
+        toValue: newPosition,
+        duration: 1000, // Etwas länger für die initiale Animation
+        useNativeDriver: true,
+        easing: Easing.inOut(Easing.ease),
+      }).start();
+    };
+
+    initializeWaterAmount();
+  }, [settings.dailyGoal]); // Abhängigkeit von settings.dailyGoal hinzugefügt
+
+  // Request permissions for notifications when the app starts
+  // useEffect(() => {
+  //   async function setupNotifications() {
+  //     const permission = await registerForPushNotificationsAsync();
+  //     if (permission) {
+  //       setNotificationPermission(true);
+  //       // Schedule daily reminders
+  //       await scheduleDailyReminders();
+  //     }
+  //   }
+
+  //   setupNotifications();
+  // }, []);
+
+  // useEffect(() => {
+  //   checkWaterEntries();
+  // }, []);
+
+  //  useEffect(() => {
+  //    cleanupUserData();
+  //  }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const savedSettings = await loadUserSettings();
+      if (savedSettings) {
+        setSettings(savedSettings);
+        console.log("Settings loaded:", savedSettings);
+      }
+    };
+
+    loadSettings();
+
+    // Echtzeit-Updates abonnieren
+    const unsubscribe = subscribeToUserSettings((newSettings) => {
+      setSettings(newSettings);
+      console.log("Settings updated via listener:", newSettings);
+    });
+
+    // Aufräumen beim Unmount
+    return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    printWaterLog();
+  }, []);
+
+  // useEffect(() => {
+  //   const reset = async () => {
+  //     await resetWaterLog();
+  //     // Optional: Zeige den neuen (leeren) WaterLog an
+  //     await printWaterLog();
+  //   };
+  //   reset();
+  // }, []);
 
   // Create a new bubble
   const createBubble = (): void => {
-    // Only create bubbles if at least 2 glasses have been added
-    if (waterCount < 2) return;
+    // Only create bubbles if at least some water was added
+    if (waterAmount < settings.glassSize * 2) return;
 
     const bubbleId = nextBubbleId.current++;
     const randomX = Math.random() * (screenWidth - 50) + 25; // Random X position
 
-    // Calculate the current water height (how much is visible)
-    const currentWaterHeight = Math.min(waterCount * stepSize, screenHeight);
+    // Berechne den Fortschritt (0-1) - gleiche Berechnung wie bei der Animation
+    const progress = Math.min(waterAmount / settings.dailyGoal, 1);
+
+    // Die Wasserhöhe ist proportional zum Fortschritt
+    const waterHeight = progress * (screenHeight - 80);
 
     setBubbles((prevBubbles) => [
       ...prevBubbles,
       {
         id: bubbleId,
         x: randomX,
-        waterHeight: currentWaterHeight,
+        waterHeight: waterHeight,
       },
     ]);
 
@@ -98,7 +184,7 @@ export default function HomeScreen(): JSX.Element {
     }
 
     // Start timer if enough water
-    if (waterCount >= 1) {
+    if (waterAmount >= 1) {
       bubbleTimerRef.current = setInterval(createBubble, 1000);
       // Create first bubble immediately
       createBubble();
@@ -110,14 +196,20 @@ export default function HomeScreen(): JSX.Element {
         clearInterval(bubbleTimerRef.current);
       }
     };
-  }, [waterCount]);
+  }, [waterAmount]);
 
-  const addWater = (): void => {
-    const newCount = waterCount + 1;
-    setWaterCount(newCount);
+  const addWater = async (): Promise<void> => {
+    const newAmount = waterAmount + settings.glassSize;
+    setWaterAmount(newAmount);
 
-    // Calculate new position, ensuring we don't go above the top limit
-    const newPosition = Math.max(initialPosition - newCount * stepSize, 0);
+    // Berechne den Fortschritt (0-1)
+    const progress = Math.min(newAmount / settings.dailyGoal, 1);
+
+    // Position berechnen - basierend auf Prozentsatz, nicht Glasanzahl
+    const newPosition = Math.max(
+      initialPosition - progress * (screenHeight - 80),
+      0
+    );
 
     Animated.timing(animatedPosition, {
       toValue: newPosition,
@@ -126,21 +218,26 @@ export default function HomeScreen(): JSX.Element {
       easing: Easing.inOut(Easing.ease),
     }).start();
 
-    // Check if goal is reached
-    if (newCount === 10) {
-      // Show the success animation
+    // Speichere den neuen Wasserstand in Firebase
+    await saveWaterAmount(newAmount);
+
+    // Ziel-Check basierend auf Wassermenge
+    if (newAmount >= settings.dailyGoal) {
       setShowGoalAnimation(true);
     }
   };
 
-  const removeWater = (): void => {
-    if (waterCount <= 0) return; // Don't go below zero
+  const removeWater = async (): Promise<void> => {
+    if (waterAmount <= 0) return;
 
-    const newCount = waterCount - 1;
-    setWaterCount(newCount);
+    const newAmount = Math.max(waterAmount - settings.glassSize, 0);
+    setWaterAmount(newAmount);
 
-    // Calculate new position
-    const newPosition = initialPosition - newCount * stepSize;
+    // Berechne den Fortschritt (0-1)
+    const progress = newAmount / settings.dailyGoal;
+
+    // Position berechnen
+    const newPosition = initialPosition - progress * (screenHeight - 80);
 
     Animated.timing(animatedPosition, {
       toValue: newPosition,
@@ -149,8 +246,10 @@ export default function HomeScreen(): JSX.Element {
       easing: Easing.inOut(Easing.ease),
     }).start();
 
-    // If water level drops below 10, hide the goal animation
-    if (newCount < 10 && showGoalAnimation) {
+    // Speichere den neuen Wasserstand in Firebase
+    await saveWaterAmount(newAmount);
+
+    if (newAmount < settings.dailyGoal && showGoalAnimation) {
       setShowGoalAnimation(false);
     }
   };
@@ -169,7 +268,7 @@ export default function HomeScreen(): JSX.Element {
 
         <View style={styles.progressInfo}>
           <Text style={styles.progressText}>
-            {(waterCount * 300).toFixed(0)} ml / 3000 ml
+            {waterAmount.toFixed(0)} ml / {settings.dailyGoal} ml
           </Text>
         </View>
 
