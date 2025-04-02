@@ -224,3 +224,66 @@ export const resetWaterLog = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// Holt die Wassereinträge der letzten N Tage
+export const getWaterEntriesForLastDays = async (
+  days: number = 7
+): Promise<DayWaterData[]> => {
+  try {
+    const userId = await getUserId();
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - (days - 1)); // N Tage zurück inklusive heute
+
+    const waterLogRef = firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("waterLog");
+
+    const results: DayWaterData[] = [];
+    const dateMap = new Map<string, number>();
+
+    // Hole die Einträge im Datumsbereich
+    const querySnapshot = await waterLogRef
+      .where(
+        firestore.FieldPath.documentId(),
+        ">=",
+        startDate.toISOString().split("T")[0]
+      )
+      .where(
+        firestore.FieldPath.documentId(),
+        "<=",
+        endDate.toISOString().split("T")[0]
+      )
+      .get();
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as DayWaterData;
+      dateMap.set(data.date, data.waterAmount);
+    });
+
+    // Fülle die Ergebnisse für jeden Tag im Bereich (auch wenn kein Eintrag vorhanden ist)
+    for (let i = 0; i < days; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      const dateString = currentDate.toISOString().split("T")[0];
+      results.push({
+        date: dateString,
+        waterAmount: dateMap.get(dateString) || 0,
+      });
+    }
+
+    // Sortiere nach Datum (optional, aber gut für die Chart-Reihenfolge)
+    results.sort((a, b) => a.date.localeCompare(b.date));
+
+    console.log(`Wasserdaten für die letzten ${days} Tage geladen.`);
+    console.log(results);
+    return results;
+  } catch (error) {
+    console.error(
+      "Fehler beim Laden der Wasserdaten für die letzten Tage:",
+      error
+    );
+    return []; // Leeres Array im Fehlerfall
+  }
+};
