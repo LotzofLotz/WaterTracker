@@ -2,7 +2,12 @@ import React, { useRef, useState, useEffect } from "react";
 import { View, Animated, Easing, Dimensions, StyleSheet } from "react-native";
 import LottieView from "lottie-react-native";
 
-const GoalBubbleAnimation: React.FC = () => {
+// Define props interface
+interface GoalBubbleAnimationProps {
+  onComplete: () => void;
+}
+
+const GoalBubbleAnimation: React.FC<GoalBubbleAnimationProps> = ({ onComplete }) => {
   // Animation werte für die Blase
   const bubbleScale = useRef(new Animated.Value(0.2)).current; // Starte klein
   const bubbleY = useRef(new Animated.Value(0)).current; // Starte bei 0 (Bottom-Position)
@@ -31,8 +36,14 @@ const GoalBubbleAnimation: React.FC = () => {
     ]).start(() => {
       // Wenn die Animation abgeschlossen ist, zeige die Checkmark
       setShowCheckmark(true);
+      // Remove the timeout - onComplete will be called by Lottie's onAnimationFinish
+      /*
+      setTimeout(() => {
+        onComplete();
+      }, 1500); // Delay slightly longer than checkmark animation (estimate)
+      */
     });
-  }, []);
+  }, [onComplete]); // Add onComplete to dependency array
 
   return (
     <View style={styles.goalAnimationContainer} pointerEvents="none">
@@ -54,6 +65,7 @@ const GoalBubbleAnimation: React.FC = () => {
               autoPlay
               loop={false}
               style={styles.checkmarkAnimation}
+              onAnimationFinish={onComplete} // Call onComplete when Lottie finishes
             />
           </View>
         )}

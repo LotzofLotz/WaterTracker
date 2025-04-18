@@ -53,13 +53,12 @@ export default function HomeScreen(): JSX.Element {
     notifications: ["10:00", "14:00", "18:00", "22:00"],
   });
 
-  // Initially position the water mostly off-screen
-  // We'll start with just a small portion visible (30px)
-  const initialPosition = screenHeight - 80;
-
-  // How far to move up with each glass (in equal steps)
-  const glassesNeeded = settings.dailyGoal / settings.glassSize;
-  const stepSize = (screenHeight - 80) / glassesNeeded;
+  // Start the water completely off-screen at the bottom
+  const initialPosition = screenHeight;
+  // Define the top position (should be 0 for the very top)
+  const topWaterPosition = 0; 
+  // Calculate the total animation distance (should be the full screen height)
+  const totalAnimationDistance = screenHeight - topWaterPosition; // This simplifies to just screenHeight
 
   // Animation value for vertical position
   const animatedPosition = useRef(new Animated.Value(initialPosition)).current;
@@ -71,16 +70,16 @@ export default function HomeScreen(): JSX.Element {
       setWaterAmount(amount);
 
       // Prüfe, ob das Ziel bereits erreicht ist
-      if (amount >= settings.dailyGoal) {
-        setShowGoalAnimation(true);
-      }
+      // if (amount >= settings.dailyGoal) {
+      //   setShowGoalAnimation(true);
+      // }
 
       // Berechne die Position basierend auf dem geladenen Wasserstand
+      // Progress is capped at 1 (100%)
       const progress = Math.min(amount / settings.dailyGoal, 1);
-      const newPosition = Math.max(
-        initialPosition - progress * (screenHeight - 80),
-        0
-      );
+      // New position calculation: Start at initialPosition and move up based on progress
+      // Ensure it reaches topWaterPosition (0) when progress is 1
+      const newPosition = initialPosition - progress * totalAnimationDistance;
 
       // Animiere zur korrekten Position
       Animated.timing(animatedPosition, {
@@ -150,6 +149,8 @@ export default function HomeScreen(): JSX.Element {
   //   reset();
   // }, []);
 
+
+
   // Create a new bubble
   const createBubble = (): void => {
     // Only create bubbles if at least some water was added
@@ -188,8 +189,10 @@ export default function HomeScreen(): JSX.Element {
       clearInterval(bubbleTimerRef.current);
       bubbleTimerRef.current = null;
     }
+    if(waterAmount >= settings.dailyGoal){
+      setShowGoalAnimation(true);
+    }
 
-    // Start timer if enough water
     if (waterAmount >= 1) {
       bubbleTimerRef.current = setInterval(createBubble, 1000);
       // Create first bubble immediately
@@ -211,11 +214,9 @@ export default function HomeScreen(): JSX.Element {
     // Berechne den Fortschritt (0-1)
     const progress = Math.min(newAmount / settings.dailyGoal, 1);
 
-    // Position berechnen - basierend auf Prozentsatz, nicht Glasanzahl
-    const newPosition = Math.max(
-      initialPosition - progress * (screenHeight - 80),
-      0
-    );
+    // Position berechnen - Start at initialPosition and move up based on progress
+    // Ensure it reaches topWaterPosition (0) when progress is 1
+    const newPosition = initialPosition - progress * totalAnimationDistance;
 
     Animated.timing(animatedPosition, {
       toValue: newPosition,
@@ -228,9 +229,9 @@ export default function HomeScreen(): JSX.Element {
     await saveWaterAmount(newAmount);
 
     // Ziel-Check basierend auf Wassermenge
-    if (newAmount >= settings.dailyGoal) {
-      setShowGoalAnimation(true);
-    }
+    // if (newAmount >= settings.dailyGoal) {
+    //   setShowGoalAnimation(true);
+    // }
   };
 
   const removeWater = async (): Promise<void> => {
@@ -242,8 +243,9 @@ export default function HomeScreen(): JSX.Element {
     // Berechne den Fortschritt (0-1)
     const progress = newAmount / settings.dailyGoal;
 
-    // Position berechnen
-    const newPosition = initialPosition - progress * (screenHeight - 80);
+    // Position berechnen - Start at initialPosition and move up based on progress
+    // Ensure it corresponds to the current progress
+    const newPosition = initialPosition - progress * totalAnimationDistance;
 
     Animated.timing(animatedPosition, {
       toValue: newPosition,
@@ -252,12 +254,15 @@ export default function HomeScreen(): JSX.Element {
       easing: Easing.inOut(Easing.ease),
     }).start();
 
+
+    if (newAmount < settings.dailyGoal) {
+      setShowGoalAnimation(false);
+    }
+
     // Speichere den neuen Wasserstand in Firebase
     await saveWaterAmount(newAmount);
 
-    if (newAmount < settings.dailyGoal && showGoalAnimation) {
-      setShowGoalAnimation(false);
-    }
+     
   };
 
   return (
@@ -307,7 +312,10 @@ export default function HomeScreen(): JSX.Element {
       </TouchableOpacity>
 
       {/* Nur die Bubble-Animation, wenn das Ziel erreicht ist */}
-      {showGoalAnimation && <GoalBubbleAnimation />}
+      {showGoalAnimation && (
+        // <GoalBubbleAnimation onComplete={() => setShowGoalAnimation(false)} />
+        <GoalBubbleAnimation onComplete={() => console.log("complete")} />
+      )}
 
       <StatusBar style="auto" />
     </View>
